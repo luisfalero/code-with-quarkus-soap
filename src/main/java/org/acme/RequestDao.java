@@ -1,9 +1,12 @@
 package org.acme;
 
+import io.quarkus.runtime.annotations.RegisterForReflection;
+
+@RegisterForReflection
 public class RequestDao {
 
-    int param1;
-    int param2;
+    public int param1;
+    public int param2;
 
     public Object[] getOperation() {
         return new Object[]{param1, param2};
