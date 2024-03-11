@@ -1,24 +1,33 @@
 package org.acme;
 
-//import org.apache.camel.Exchange;
-//import org.apache.camel.Processor;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.camel.Exchange;
+import org.apache.camel.Processor;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.cxf.common.message.CxfConstants;
 import org.apache.camel.component.cxf.jaxws.CxfEndpoint;
 import org.apache.camel.model.dataformat.JsonLibrary;
+import org.apache.cxf.endpoint.Client;
+import org.apache.cxf.transports.http.configuration.HTTPClientPolicy;
 import org.tempuri.CalculatorSoap;
 
-//import com.fasterxml.jackson.databind.JsonNode;
-//import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.SessionScoped;
 import jakarta.enterprise.inject.Produces;
+import jakarta.inject.Inject;
 import jakarta.inject.Named;
 
 @ApplicationScoped
 public class CxfSoapClientRoutes extends RouteBuilder {
-   
+
+    @Inject
+    SoapConfiguration configuration;
+       
     @Override
     public void configure() throws Exception {
         rest()
@@ -52,8 +61,21 @@ public class CxfSoapClientRoutes extends RouteBuilder {
             })
             */
 
-            .setHeader(CxfConstants.OPERATION_NAME, constant("Add"))
-            .setHeader(CxfConstants.OPERATION_NAMESPACE, constant("http://tempuri.org/"))
+            .setHeader(CxfConstants.OPERATION_NAME, constant(configuration.operationName()))
+            .setHeader(CxfConstants.OPERATION_NAMESPACE, constant(configuration.operationNamespace()))
+                    
+            .process(new Processor() {
+                @Override
+                public void process(Exchange exchange) throws Exception {                 
+                    Map<String, Object> requestContext = new HashMap<String, Object>();
+                    HTTPClientPolicy clientPolicy = new HTTPClientPolicy();
+                    clientPolicy.setConnectionTimeout(configuration.connectionTimeout());
+                    clientPolicy.setReceiveTimeout(configuration.receiveTimeout());
+                    requestContext.put(HTTPClientPolicy.class.getName(), clientPolicy);
+                    exchange.getIn().setHeader(Client.REQUEST_CONTEXT , requestContext);
+                }
+            })
+            
             .to("cxf:bean:calculatorSoapEndpoint?dataFormat=POJO")
             //.to("cxf://http://www.dneonline.com/calculator.asmx?wsdlURL=wsdl/CalculatorService.wsdl&dataFormat=POJO&serviceClass=org.tempuri.CalculatorSoap")           
             
@@ -67,11 +89,22 @@ public class CxfSoapClientRoutes extends RouteBuilder {
     @Produces
     @SessionScoped
     @Named("calculatorSoapEndpoint")
-    CxfEndpoint calculatorSoapEndpoint() {
+    CxfEndpoint calculatorSoapEndpoint() throws Exception {
         final CxfEndpoint result = new CxfEndpoint();
         result.setServiceClass(CalculatorSoap.class);
-        result.setAddress("http://www.dneonline.com/calculator.asmx");
-        result.setWsdlURL("wsdl/CalculatorService.wsdl");
+        //result.setContinuationTimeout(1);
+        //result.setPollingConsumerBlockTimeout(1);        
+        result.setAddress(configuration.operationAddress());
+        result.setWsdlURL(configuration.operationWsdlURL());
+        
+        // Configuración del cliente CXF
+        //Client client = ClientProxy.getClient(result.createClient());
+        //HTTPConduit httpConduit = (HTTPConduit) client.getConduit();
+        //HTTPClientPolicy httpClientPolicy = new HTTPClientPolicy();
+        //httpClientPolicy.setConnectionTimeout(5000); // Tiempo de espera de conexión en milisegundos
+        //httpClientPolicy.setReceiveTimeout(5000);    // Tiempo de espera para recibir en milisegundos
+        //httpClientPolicy.setAllowChunking(false);    // Deshabilitar el uso de transferencia de datos fragmentados
+        //httpConduit.setClient(httpClientPolicy);     
         return result;
-    }  
+    }
 }

@@ -16,7 +16,7 @@ mvn package quarkus:dev
 Create a native executable using:
 
 ```shell
-mvn package -Dnative
+mvn package -Pnative
 ```
 
 The application, packaged as an _über-jar_, is now runnable using:
